@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>撕页印刷</title>
+<style>/*@@FONTS@@*/</style>
+<style>
+  :root { --bg:#f3efe6; --ink:#2b2723; --mute:#8a8276; --line:#d9d1c1; --acc:#2b2723; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.4 -apple-system,"PingFang SC",sans-serif; }
+  header { display:flex; align-items:baseline; justify-content:space-between; padding:14px 16px 8px; }
+  header b { font:600 17px "Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif; letter-spacing:.08em; }
+  header span { font:11px "Special Elite",monospace; color:var(--mute); letter-spacing:.12em; }
+  #stage { position:relative; display:flex; justify-content:center; padding:0 12px; }
+  #cv { max-width:100%; max-height:62vh; touch-action:none; display:block; border-radius:6px; }
+  #hint { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); background:rgba(43,39,35,.72); color:#fff;
+          padding:5px 12px; border-radius:20px; font-size:12px; pointer-events:none; transition:opacity .4s; }
+  #busy { position:absolute; top:10px; right:22px; font:11px "Special Elite",monospace; color:var(--mute); opacity:0; }
+  #panel { padding:12px 16px 40px; display:flex; flex-direction:column; gap:12px; max-width:640px; margin:0 auto; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .seg { display:flex; border:1px solid var(--ink); border-radius:8px; overflow:hidden; }
+  .seg button { border:0; background:transparent; padding:8px 14px; font-size:14px; color:var(--ink); }
+  .seg button.on { background:var(--ink); color:var(--bg); }
+  .btn { border:1px solid var(--line); background:#fffdf8; border-radius:8px; padding:8px 12px; font-size:14px; color:var(--ink); }
+  .btn.primary { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  .grow { flex:1; }
+  label.file { position:relative; overflow:hidden; }
+  label.file input { position:absolute; inset:0; opacity:0; }
+  select { flex:1; border:1px solid var(--line); border-radius:8px; background:#fffdf8; padding:8px; font-size:14px; color:var(--ink); }
+  textarea { width:100%; min-height:72px; border:1px solid var(--line); border-radius:8px; background:#fffdf8; padding:10px;
+             font:14px/1.6 "Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif; color:var(--ink); resize:vertical; }
+  .sl { display:grid; grid-template-columns:64px 1fr; align-items:center; gap:8px; font-size:13px; color:var(--mute); }
+  input[type=range] { width:100%; accent-color:var(--ink); }
+  .sw { width:28px; height:28px; border-radius:50%; border:2px solid transparent; box-shadow:0 0 0 1px var(--line) inset; }
+  .sw.on { border-color:var(--ink); }
+  .tg { font-size:13px; color:var(--mute); display:flex; align-items:center; gap:4px; }
+  .cap { font-size:12px; color:var(--mute); }
+  header .r { display:flex; align-items:center; gap:10px; }
+  #help { width:24px; height:24px; border-radius:50%; border:1px solid var(--ink); background:transparent; font:600 13px Georgia,serif; color:var(--ink); padding:0; }
+  #empty { width:100%; max-width:560px; aspect-ratio:4/3; border:1.5px dashed #c9bfac; border-radius:10px; display:flex; flex-direction:column;
+           align-items:center; justify-content:center; gap:14px; background:repeating-linear-gradient(45deg,#efe9dc 0 10px,#f3efe6 10px 20px); }
+  #empty .big { font:600 16px "Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif; padding:12px 22px; }
+  #empty .cap a { color:var(--ink); }
+  #guide { position:fixed; inset:0; background:rgba(30,26,22,.55); display:none; align-items:flex-end; justify-content:center; z-index:9; }
+  #guide.show { display:flex; }
+  .card { width:100%; max-width:520px; background:#f6f1e5; border-radius:18px 18px 0 0; padding:22px 22px 30px; box-shadow:0 -10px 40px rgba(0,0,0,.25);
+          background-image:repeating-linear-gradient(0deg,transparent 0 27px,rgba(140,120,80,.12) 27px 28px); }
+  @media (min-width:600px) { #guide { align-items:center; } .card { border-radius:18px; } }
+  .card .no { font:12px "Special Elite",monospace; letter-spacing:.15em; color:var(--mute); }
+  .card h3 { margin:6px 0 10px; font:600 22px "Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif; }
+  .card p { margin:0 0 8px; font-size:15px; line-height:1.75; }
+  .card .ill { height:120px; margin:6px 0 14px; border-radius:10px; overflow:hidden; }
+  .card .nav { display:flex; align-items:center; gap:10px; margin-top:14px; }
+  .dots { display:flex; gap:6px; flex:1; } .dots i { width:6px; height:6px; border-radius:50%; background:#cfc5b2; } .dots i.on { background:var(--ink); width:18px; border-radius:3px; }
+</style>
+</head>
+<body>
+<header><b>撕页印刷</b><div class="r"><span>TORN PAGE PRESS</span><button id="help" title="怎么玩">?</button></div></header>
+<div id="stage">
+  <div id="empty"><label class="btn primary big file">选一张照片<input type="file" id="file0" accept="image/*"></label>
+    <button class="btn" id="demo">用示例照片试试</button>
+    <div class="cap">第一次用？<a href="#" id="help2">看看怎么玩</a></div></div>
+  <canvas id="cv" style="display:none"></canvas><div id="hint" style="opacity:0">在照片上画一笔，把它撕开</div><div id="busy">PRINTING…</div></div>
+
+<div id="panel">
+  <div class="row">
+    <div class="seg" id="mode"><button data-v="tear" class="on">泪痕</button><button data-v="hole">破洞</button><button data-v="corner">撕角</button></div>
+    <span class="grow"></span>
+    <button class="btn" id="undo">撤销</button>
+    <button class="btn" id="clear">重来</button>
+  </div>
+  <div class="cap" id="modeCap">泪痕：顺着画一笔，撕出一道细长的口子，字沿着口子竖排</div>
+
+  <div class="row"><span class="cap">经文</span>
+    <select id="sutra">
+      <option value="all">经文合集（梵文，天城体）</option>
+      <option value="mani">六字大明咒 · 转经筒上那句</option>
+      <option value="heart">心经 · 梵文节选</option>
+      <option value="gayatri">嘉雅特里真言</option>
+      <option value="asato">祈愿文 · 从虚妄到真实</option>
+      <option value="custom">自己写</option>
+    </select></div>
+  <textarea id="text"></textarea>
+
+  <div class="sl"><span>撕口粗细</span><input type="range" id="size" min="0.5" max="2" step="0.05" value="1"></div>
+  <div class="sl"><span>撕边毛糙</span><input type="range" id="rough" min="0" max="1" step="0.05" value="0.55"></div>
+  <div class="sl"><span>字号</span><input type="range" id="fs" min="0.6" max="1.8" step="0.05" value="1"></div>
+
+  <div class="row">
+    <span class="cap">纸</span>
+    <button class="sw paper on" title="洛克塔手工纸" data-c="#e6d3ab" data-f="2" style="background:#e6d3ab"></button>
+    <button class="sw paper" title="雪白" data-c="#f3f2ee" data-f=".7" style="background:#f3f2ee"></button>
+    <button class="sw paper" title="天蓝" data-c="#d3e4ef" data-f="1" style="background:#d3e4ef"></button>
+    <button class="sw paper" title="朱红" data-c="#c75a42" data-f="1.3" style="background:#c75a42"></button>
+    <span class="cap" style="margin-left:10px">墨</span>
+    <button class="sw ink on" title="墨黑" data-c="#2a2520" style="background:#2a2520"></button>
+    <button class="sw ink" title="朱砂" data-c="#a3271d" style="background:#a3271d"></button>
+    <button class="sw ink" title="藏青" data-c="#1d3352" style="background:#1d3352"></button>
+    <button class="sw ink" title="米白" data-c="#f4ead6" style="background:#f4ead6"></button>
+  </div>
+  <div class="row"><span class="cap">中英文字体</span>
+    <div class="seg" id="font"><button data-v="song" class="on">宋体</button><button data-v="type">打字机</button></div>
+    <span class="cap">（经文固定用天城体）</span>
+  </div>
+  <div class="row">
+    <label class="tg"><input type="checkbox" id="bw"> 黑白照片</label>
+    <label class="tg"><input type="checkbox" id="frame" checked> 相框</label>
+    <span class="grow"></span>
+    <label class="btn file">换照片<input type="file" id="file" accept="image/*"></label>
+    <button class="btn primary" id="export">导出</button>
+  </div>
+</div>
+
+<div id="guide"><div class="card">
+  <div class="no" id="gNo">01 / 05</div><h3 id="gT"></h3><div class="ill" id="gI"></div><p id="gP"></p>
+  <div class="nav"><div class="dots" id="gD"></div><button class="btn" id="gSkip">跳过</button><button class="btn primary" id="gNext">下一步</button></div>
+</div></div>
+
+<script>
+// ============ 状态 ============
+const S = {
+  mode: 'tear', font: 'song', paper: '#e6d3ab', fiber: 2, ink: '#2a2520', size: 1, rough: .55, fs: 1, bw: false, frame: true,
+};
+// 经文：尼泊尔寺庙与转经筒上常见的梵文（与尼泊尔语同为天城体）
+const SUTRA = {
+  mani: 'ॐ मणि पद्मे हूँ ॐ मणि पद्मे हूँ ॐ मणि पद्मे हूँ ॐ मणि पद्मे हूँ',
+  heart: 'आर्यावलोकितेश्वरो बोधिसत्त्वो गम्भीरायां प्रज्ञापारमितायां चर्यां चरमाणो व्यवलोकयति स्म । पञ्च स्कन्धाः तांश्च स्वभावशून्यान् पश्यति स्म । रूपं शून्यता शून्यतैव रूपम् । गते गते पारगते पारसंगते बोधि स्वाहा ॥',
+  gayatri: 'ॐ भूर्भुवः स्वः । तत्सवितुर्वरेण्यं भर्गो देवस्य धीमहि । धियो यो नः प्रचोदयात् ॥',
+  asato: 'असतो मा सद्गमय । तमसो मा ज्योतिर्गमय । मृत्योर्मा अमृतं गमय । ॐ शान्तिः शान्तिः शान्तिः ॥',
+};
+SUTRA.all = [SUTRA.mani, SUTRA.heart, SUTRA.gayatri, SUTRA.asato].join(' ');
+S.text = SUTRA.all;
+const WORK = 1600;
+let W = 0, H = 0, PAD = 0;
+let photo = null;          // 原始照片（已缩放）canvas
+let photoC = null;         // 处理后的照片（黑白等）
+let N1, N2, N3;            // 噪声场：撕边起伏 / 纤维毛絮 / 白边宽窄
+let paperTex = null;       // 纸张肌理
+let strokes = [];          // {mode, pts:[[x,y]], size, fs, seed}
+let cur = null;
+
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+$('text').value = S.text;
+
+// ============ 工具 ============
+function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const DEVA = /[\u0900-\u097F]/;
+const isDeva = () => DEVA.test($('text').value);
+const SONG = '"Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif';
+const fontFam = () => isDeva() ? '"Noto Serif Devanagari","Kohinoor Devanagari","Devanagari Sangam MN",serif' : S.font === 'type' ? '"Special Elite","Courier New","Songti SC","STSong",serif' : SONG;
+
+// 分形值噪声，返回 0..1 的 Float32Array
+function fbm(w, h, octs, seed) {
+  const out = new Float32Array(w * h), r = rng(seed);
+  let tot = 0; for (const [, wt] of octs) tot += wt;
+  for (const [cell, wt0] of octs) {
+    const wt = wt0 / tot, gw = Math.ceil(w / cell) + 2, gh = Math.ceil(h / cell) + 2, g = new Float32Array(gw * gh);
+    for (let i = 0; i < g.length; i++) g[i] = r();
+    const ix = new Int32Array(w), sx = new Float32Array(w);
+    for (let x = 0; x < w; x++) { const f = x / cell, i = f | 0, t = f - i; ix[x] = i; sx[x] = t * t * (3 - 2 * t); }
+    for (let y = 0; y < h; y++) {
+      const f = y / cell, iy = f | 0, t = f - iy, sy = t * t * (3 - 2 * t), r0 = iy * gw, r1 = r0 + gw, o = y * w;
+      for (let x = 0; x < w; x++) {
+        const i = ix[x], s = sx[x], a = g[r0 + i], b = g[r0 + i + 1], c = g[r1 + i], d = g[r1 + i + 1];
+        out[o + x] += wt * (a + (b - a) * s + (c - a) * sy + (a - b - c + d) * s * sy);
+      }
+    }
+  }
+  return out;
+}
+function boxBlur(src, w, h, r) {
+  const tmp = new Float32Array(w * h), dst = new Float32Array(w * h), n = 2 * r + 1;
+  for (let y = 0; y < h; y++) { const o = y * w; let acc = 0;
+    for (let x = -r; x <= r; x++) acc += src[o + Math.min(w - 1, Math.max(0, x))];
+    for (let x = 0; x < w; x++) { tmp[o + x] = acc / n; acc += src[o + Math.min(w - 1, x + r + 1)] - src[o + Math.max(0, x - r)]; } }
+  for (let x = 0; x < w; x++) { let acc = 0;
+    for (let y = -r; y <= r; y++) acc += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+    for (let y = 0; y < h; y++) { dst[y * w + x] = acc / n; acc += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x]; } }
+  return dst;
+}
+function resample(pts, step) {
+  if (pts.length < 2) return pts.slice();
+  const out = [pts[0]]; let carry = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], d = Math.hypot(x1 - x0, y1 - y0);
+    let t = step - carry;
+    while (t <= d) { out.push([x0 + (x1 - x0) * t / d, y0 + (y1 - y0) * t / d]); t += step; }
+    carry = d - (t - step);
+  }
+  return out;
+}
+
+// ============ 载入 ============
+function loadImage(src) {
+  const im = new Image();
+  im.onload = () => {
+    const s = Math.min(1, WORK / Math.max(im.width, im.height));
+    W = Math.round(im.width * s); H = Math.round(im.height * s);
+    photo = mk(W, H); photo.getContext('2d').drawImage(im, 0, 0, W, H);
+    $('empty').style.display = 'none'; cv.style.display = 'block'; $('hint').style.opacity = 1;
+    busy(true);
+    setTimeout(() => {
+      N1 = fbm(W, H, [[W * .05, .40], [W * .022, .28], [W * .009, .18], [W * .0035, .14]], 11);
+      N2 = fbm(W, H, [[5, .55], [2, .45]], 23);
+      N3 = fbm(W, H, [[W * .03, .6], [W * .012, .4]], 37);
+      buildPaperTex(); buildPhoto(); strokes = []; render();
+    }, 30);
+  };
+  im.src = src;
+}
+function buildPhoto() {
+  photoC = mk(W, H); const c = photoC.getContext('2d');
+  c.drawImage(photo, 0, 0);
+  if (S.bw) {
+    const d = c.getImageData(0, 0, W, H), p = d.data;
+    for (let i = 0; i < p.length; i += 4) { let l = .3 * p[i] + .59 * p[i + 1] + .11 * p[i + 2]; l = 128 + (l - 128) * 1.12; p[i] = p[i + 1] = p[i + 2] = l; }
+    c.putImageData(d, 0, 0);
+  }
+}
+// 纸张肌理：颗粒 + 纤维 + 污渍 + 折痕（以 multiply 叠在纸色上）
+function buildPaperTex() {
+  paperTex = mk(W, H); const c = paperTex.getContext('2d'), r = rng(5);
+  const d = c.createImageData(W, H), p = d.data;
+  for (let i = 0, j = 0; i < p.length; i += 4, j++) { const v = 255 - r() * 16 - N2[j] * 10 - (N3[j] - .5) * 18; p[i] = v; p[i + 1] = v; p[i + 2] = v - 2; p[i + 3] = 255; }
+  c.putImageData(d, 0, 0);
+  for (let i = 0; i < 6; i++) {          // 污渍
+    const x = r() * W, y = r() * H, rad = W * (.05 + r() * .18), g = c.createRadialGradient(x, y, 0, x, y, rad);
+    g.addColorStop(0, `rgba(170,130,70,${.05 + r() * .07})`); g.addColorStop(.7, 'rgba(170,130,70,.03)'); g.addColorStop(1, 'rgba(170,130,70,0)');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+  }
+  c.lineCap = 'round';
+  for (let i = 0; i < W * .35 * S.fiber; i++) {    // 纤维（洛克塔纸更多更长）
+    const x = r() * W, y = r() * H, a = r() * Math.PI * 2, l = 4 + r() * 18 * S.fiber;
+    c.strokeStyle = `rgba(110,90,60,${.06 + r() * .1})`; c.lineWidth = .5 + r() * .8;
+    c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + Math.cos(a) * l * .5 + (r() - .5) * 6, y + Math.sin(a) * l * .5 + (r() - .5) * 6, x + Math.cos(a) * l, y + Math.sin(a) * l); c.stroke();
+  }
+  for (let i = 0; i < 2; i++) {          // 折痕：一暗一亮
+    const y0 = r() * H, y1 = r() * H;
+    c.strokeStyle = 'rgba(90,75,55,.16)'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(0, y0); c.lineTo(W, y1); c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.moveTo(0, y0 + 2); c.lineTo(W, y1 + 2); c.stroke();
+  }
+}
+
+// ============ 撕口蒙版 ============
+const tearW = st => W * .05 * st.size;
+const holeR = st => W * .085 * st.size;
+
+function drawStrokeMask(c, st) {
+  const r = rng(st.seed); c.fillStyle = '#fff';
+  if (st.mode === 'tear') {
+    const pts = resample(st.pts, 1.5), n = pts.length, w = tearW(st), ph = r() * 9;
+    pts.forEach(([x, y], i) => {
+      const t = n > 1 ? i / (n - 1) : .5;
+      const taper = t < .06 ? .55 + 7.5 * t : 1 - .45 * Math.max(0, (t - .72) / .28);
+      const wob = 1 + .22 * Math.sin(t * 13 + ph) + .12 * Math.sin(t * 31 + ph * 2);
+      c.beginPath(); c.arc(x, y, w / 2 * taper * wob, 0, Math.PI * 2); c.fill();
+    });
+  } else if (st.mode === 'corner') {
+    const [a, b] = [st.pts[0], st.pts[st.pts.length - 1]];
+    let dx = b[0] - a[0], dy = b[1] - a[1]; const L = Math.hypot(dx, dy); if (L < 8) return;
+    dx /= L; dy /= L;
+    let nx = -dy, ny = dx;                                   // 撕掉不含画面中心的那一侧
+    if ((W / 2 - a[0]) * nx + (H / 2 - a[1]) * ny > 0) { nx = -nx; ny = -ny; }
+    const F = (W + H) * 4;
+    c.beginPath();
+    c.moveTo(a[0] - dx * F, a[1] - dy * F); c.lineTo(a[0] + dx * F, a[1] + dy * F);
+    c.lineTo(a[0] + dx * F + nx * F, a[1] + dy * F + ny * F); c.lineTo(a[0] - dx * F + nx * F, a[1] - dy * F + ny * F);
+    c.closePath(); c.fill();
+  } else {
+    const R = holeR(st), pts = st.pts.length > 1 ? resample(st.pts, R * .35) : st.pts;
+    pts.forEach(([x, y]) => {
+      const k = 9, rr = R * (.7 + r() * .6), ph = r() * 6;
+      c.beginPath();
+      for (let i = 0; i <= k; i++) { const a = i / k * Math.PI * 2, q = rr * (.6 + .6 * r() * (.55 + .45 * Math.sin(a * 2 + ph)));
+        i ? c.lineTo(x + Math.cos(a) * q, y + Math.sin(a) * q) : c.moveTo(x + Math.cos(a) * q, y + Math.sin(a) * q); }
+      c.fill();
+    });
+  }
+}
+
+// ============ 下层：印字的纸 ============
+function inkChar(c, ch, x, y, fs, r) {
+  c.save();
+  c.translate(x + (r() - .5) * fs * .08, y + (r() - .5) * fs * .08);
+  c.rotate((r() - .5) * .05);
+  c.globalAlpha = .62 + r() * .38;
+  c.fillText(ch, 0, 0);
+  if (r() < .18) { c.globalAlpha *= .6; c.fillText(ch, .6, .3); }   // 偶尔重击
+  c.restore();
+}
+// 天城体按词排：字母上方的横线（头线）要连在一起，拆成单字会断
+function tokens() { const t = ($('text').value || ' ').trim();
+  return isDeva() ? t.split(/\s+/).filter(Boolean) : chars(); }
+function chars() { const t = ($('text').value || ' ').replace(/\s+/g, S.font === 'type' ? ' ' : ''); return Array.from(t); }
+
+function buildPaper() {
+  const pc = mk(W, H), c = pc.getContext('2d');
+  c.fillStyle = S.paper; c.fillRect(0, 0, W, H);
+  c.fillStyle = S.ink; c.shadowColor = S.ink + '59'; c.shadowBlur = 1.2;   // 微微晕墨
+  const cs = tokens(), deva = isDeva(), r = rng(99);
+  // 破洞：整页连续排字，洞口会把字截断
+  if (strokes.some(s => s.mode !== 'tear')) {
+    const fs = W * (deva ? .04 : .036) * S.fs, lh = fs * (deva ? 2 : 1.62);
+    c.font = `${fs}px ${fontFam()}`; c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+    const sp = deva ? fs * .45 : 0;
+    let k = 0;
+    for (let y = fs * 1.1; y < H + fs; y += lh) {
+      let x = -fs * .3 - (deva ? r() * fs * 3 : 0) + (r() - .5) * fs * .2;
+      while (x < W + fs) { const ch = cs[k++ % cs.length], cw = c.measureText(ch).width * (deva || S.font === 'type' ? 1 : 1.04);
+        inkChar(c, ch, x, y, fs, r); x += cw + sp; }
+    }
+  }
+  // 泪痕：先用纸色盖住口子底下的字，再沿着笔画竖排
+  let k = 0;
+  strokes.filter(s => s.mode === 'tear').forEach(st => {
+    const w = tearW(st);
+    c.save(); c.shadowBlur = 0; c.strokeStyle = S.paper; c.lineWidth = w * 2; c.lineCap = c.lineJoin = 'round';
+    c.beginPath(); st.pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.stroke(); c.restore();
+    const fs = Math.max(10, w * .5 * st.fs), rr = rng(st.seed + 7);
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    if (deva) {   // 天城体：每个词正着放、一行一个往下叠；词太长就缩小到能塞进撕口
+      const fd = fs * .8; let carry = fd * .9, prev = null;
+      const path = resample(st.pts, 2);
+      for (let i = 0; i < path.length - 1; i++) {
+        if (prev) carry -= Math.hypot(path[i][0] - prev[0], path[i][1] - prev[1]);
+        prev = path[i];
+        if (carry > 0) continue;
+        if (i > path.length - fd / 2) break;
+        const word = cs[k++ % cs.length];
+        c.font = `${fd}px ${fontFam()}`;
+        const f = Math.max(fd * .45, Math.min(fd, fd * w * .82 / c.measureText(word).width));
+        c.font = `${f}px ${fontFam()}`;
+        inkChar(c, word, path[i][0] + (rr() - .5) * w * .1, path[i][1], f, rr);
+        carry = Math.max(f, fd * .7) * 1.45;
+      }
+      return;
+    }
+    resample(st.pts, fs * 1.08).slice(1, -1).forEach(([x, y]) => {
+      const ch = cs[k++ % cs.length]; if (ch === ' ') return;
+      c.font = `${fs * (.82 + rr() * .36)}px ${fontFam()}`;
+      inkChar(c, ch, x + (rr() - .5) * w * .28, y, fs, rr);
+    });
+  });
+  c.shadowBlur = 0;
+  c.globalCompositeOperation = 'multiply'; c.drawImage(paperTex, 0, 0);
+  return pc;
+}
+
+// ============ 上层：被撕开的照片 ============
+function buildTorn() {
+  const mc = mk(W, H), m = mc.getContext('2d');
+  m.fillStyle = '#000'; m.fillRect(0, 0, W, H);
+  strokes.forEach(st => drawStrokeMask(m, st));
+  if (cur) drawStrokeMask(m, cur);
+  const raw = m.getImageData(0, 0, W, H).data, src = new Float32Array(W * H);
+  for (let i = 0; i < src.length; i++) src[i] = raw[i * 4] / 255;
+  const br = Math.max(4, Math.round(W * .007));
+  const mb = boxBlur(boxBlur(src, W, H, br), W, H, br);
+
+  const out = photoC.getContext('2d').getImageData(0, 0, W, H), p = out.data;
+  const amp = .35 + S.rough * 1.1, e = .025, rimW = .2;
+  for (let i = 0, j = 0; j < mb.length; i += 4, j++) {
+    const v0 = mb[j]; if (v0 < .004) continue;
+    const v = v0 + (N1[j] - .5) * 2 * amp * .5 * Math.min(1, v0 * 3);
+    const hole = ss(.5 - e, .5 + e, v);
+    const rt = .5 - rimW * (.15 + 1.7 * N3[j] * N3[j] * 1.6) - (N2[j] - .5) * .16;   // 白边：宽窄不一 + 毛絮
+    const rim = ss(rt - e * .7, rt + e * .7, v);
+    if (rim <= 0) continue;
+    const edge = rim * (1 - rim) * 4;                                    // 白边与相纸交界处略暗
+    const wc = 248 - N2[j] * 26 - edge * 30;
+    p[i] = p[i] + (wc - p[i]) * rim; p[i + 1] = p[i + 1] + (wc - 2 - p[i + 1]) * rim; p[i + 2] = p[i + 2] + (wc - 8 - p[i + 2]) * rim;
+    p[i + 3] = 255 * (1 - hole);
+  }
+  const tc = mk(W, H); tc.getContext('2d').putImageData(out, 0, 0);
+  return tc;
+}
+
+// ============ 相框 ============
+function drawFrame(c, w, h) {
+  const p = PAD, rad = p * .3;
+  c.save();
+  c.beginPath(); c.roundRect(0, 0, w, h, rad); c.clip();
+  c.fillStyle = '#e6dcc0'; c.fillRect(0, 0, w, h);
+  c.strokeStyle = 'rgba(130,108,66,.22)'; c.lineWidth = Math.max(1, p * .035);
+  const s = p * .5;
+  for (let x = -h; x < w + h; x += s) {
+    c.beginPath(); c.moveTo(x, 0); c.lineTo(x + h, h); c.stroke();
+    c.beginPath(); c.moveTo(x, h); c.lineTo(x + h, 0); c.stroke();
+  }
+  const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,255,255,.18)'); g.addColorStop(1, 'rgba(0,0,0,.06)');
+  c.fillStyle = g; c.fillRect(0, 0, w, h);
+  c.restore();
+  c.save(); c.strokeStyle = 'rgba(80,65,40,.25)'; c.lineWidth = 2; c.beginPath(); c.roundRect(1, 1, w - 2, h - 2, rad); c.stroke(); c.restore();
+}
+
+// ============ 合成 ============
+function render() {
+  if (!photo) return;
+  PAD = S.frame ? Math.round(Math.max(W, H) * .045) : 0;
+  const OW = W + PAD * 2, OH = H + PAD * 2;
+  if (cv.width !== OW || cv.height !== OH) { cv.width = OW; cv.height = OH; }
+  ctx.clearRect(0, 0, OW, OH);
+  if (S.frame) drawFrame(ctx, OW, OH);
+  ctx.save(); ctx.translate(PAD, PAD);
+  if (S.frame) { ctx.save(); ctx.shadowColor = 'rgba(40,30,15,.35)'; ctx.shadowBlur = PAD * .35; ctx.shadowOffsetY = PAD * .06;
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
+  ctx.drawImage(buildPaper(), 0, 0);
+  const torn = buildTorn();
+  ctx.save(); ctx.shadowColor = 'rgba(25,18,8,.42)'; ctx.shadowBlur = W * .006; ctx.shadowOffsetX = W * .0015; ctx.shadowOffsetY = W * .003;
+  ctx.drawImage(torn, 0, 0); ctx.restore();
+  // 整体颗粒，统一照片与纸的质感
+  const g = ctx.getImageData(PAD, PAD, W, H), q = g.data, r = rng(3);
+  for (let i = 0; i < q.length; i += 4) { const n = (r() - .5) * 13; q[i] += n; q[i + 1] += n; q[i + 2] += n; }
+  ctx.putImageData(g, PAD, PAD);
+  ctx.restore();
+  busy(false);
+}
+let raf = 0;
+function schedule() { busy(true); cancelAnimationFrame(raf); raf = requestAnimationFrame(() => setTimeout(render, 0)); }
+function busy(on) { $('busy').style.opacity = on ? 1 : 0; }
+
+// ============ 手势 ============
+function pt(e) { const b = cv.getBoundingClientRect(), k = cv.width / b.width; return [(e.clientX - b.left) * k - PAD, (e.clientY - b.top) * k - PAD]; }
+let snap = null;
+function preview() {   // 画的过程中只显示笔迹，松手再撕
+  if (!cur) return;
+  if (cur.mode === 'corner') {                               // 撕角：显示一条从起点拉到手指的虚线
+    if (snap) ctx.putImageData(snap, 0, 0);
+    const a = cur.pts[0], b = cur.pts[cur.pts.length - 1];
+    ctx.save(); ctx.translate(PAD, PAD); ctx.strokeStyle = 'rgba(255,253,245,.9)'; ctx.lineWidth = Math.max(2, W * .003);
+    ctx.setLineDash([W * .012, W * .008]); ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke(); ctx.restore();
+    return;
+  }
+  ctx.save(); ctx.translate(PAD, PAD); ctx.strokeStyle = 'rgba(255,253,245,.75)'; ctx.fillStyle = 'rgba(255,253,245,.75)';
+  ctx.lineCap = ctx.lineJoin = 'round';
+  ctx.lineWidth = cur.mode === 'tear' ? tearW(cur) : holeR(cur) * 1.6;
+  const n = cur.pts.length; if (n > 1) { ctx.beginPath(); ctx.moveTo(...cur.pts[n - 2]); ctx.lineTo(...cur.pts[n - 1]); ctx.stroke(); }
+  else { ctx.beginPath(); ctx.arc(...cur.pts[0], ctx.lineWidth / 2, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+cv.addEventListener('pointerdown', e => {
+  if (!photo) return; cv.setPointerCapture(e.pointerId);
+  cur = { mode: S.mode, pts: [pt(e)], size: S.size, fs: S.fs, seed: (Math.random() * 1e9) | 0 };
+  $('hint').style.opacity = 0; snap = cur.mode === 'corner' ? ctx.getImageData(0, 0, cv.width, cv.height) : null; preview();
+});
+cv.addEventListener('pointermove', e => {
+  if (!cur) return; const p = pt(e), l = cur.pts[cur.pts.length - 1];
+  if (Math.hypot(p[0] - l[0], p[1] - l[1]) > 3) { cur.pts.push(p); preview(); }
+});
+const up = () => { if (!cur) return; strokes.push(cur); cur = null; schedule(); };
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+
+// ============ 控件 ============
+function seg(id, key, cb) { $(id).querySelectorAll('button').forEach(b => b.onclick = () => {
+  $(id).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); S[key] = b.dataset.v; cb && cb(); }); }
+seg('mode', 'mode', () => { $('modeCap').textContent = S.mode === 'tear'
+  ? '泪痕：顺着画一笔，撕出一道细长的口子，字沿着口子竖排'
+  : S.mode === 'hole' ? '破洞：点一下或抹一片，撕出不规则的洞，露出底下整页的字'
+  : '撕角：拖一条线，线外侧靠边的那一块会被撕掉，露出底下整页的字'; });
+seg('font', 'font', () => document.fonts.ready.then(schedule));
+document.querySelectorAll('.sw.paper').forEach(b => b.onclick = () => { document.querySelectorAll('.sw.paper').forEach(x => x.classList.toggle('on', x === b));
+  S.paper = b.dataset.c; S.fiber = +b.dataset.f; buildPaperTex(); schedule(); });
+document.querySelectorAll('.sw.ink').forEach(b => b.onclick = () => { document.querySelectorAll('.sw.ink').forEach(x => x.classList.toggle('on', x === b)); S.ink = b.dataset.c; schedule(); });
+$('sutra').onchange = e => { const v = e.target.value; if (v === 'custom') { $('text').value = ''; $('text').focus(); return; } $('text').value = SUTRA[v]; schedule(); };
+['size', 'fs'].forEach(k => $(k).oninput = e => { S[k] = +e.target.value; });         // 只影响之后画的笔
+$('fs').onchange = () => { strokes.forEach(s => s.fs = S.fs); schedule(); };           // 字号对已有内容也生效
+$('rough').oninput = e => { S.rough = +e.target.value; }; $('rough').onchange = schedule;
+$('text').oninput = () => { clearTimeout($('text')._t); $('text')._t = setTimeout(schedule, 300); };
+$('bw').onchange = e => { S.bw = e.target.checked; buildPhoto(); schedule(); };
+$('frame').onchange = e => { S.frame = e.target.checked; schedule(); };
+$('undo').onclick = () => { strokes.pop(); schedule(); };
+$('clear').onclick = () => { strokes = []; schedule(); };
+$('file').onchange = e => { const f = e.target.files[0]; if (f) loadImage(URL.createObjectURL(f)); };
+$('export').onclick = () => cv.toBlob(async b => {
+  const f = new File([b], `撕页印刷_${Date.now()}.jpg`, { type: 'image/jpeg' });
+  if (navigator.canShare && navigator.canShare({ files: [f] })) { try { await navigator.share({ files: [f] }); return; } catch (_) {} }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = f.name; a.click();
+}, 'image/jpeg', .93);
+
+document.fonts.load('20px "Noto Serif Devanagari"', 'ॐ मणि').catch(() => {});
+$('file0').onchange = $('file').onchange;
+
+// ============ 新手引导 ============
+const SAMPLE = '@@SAMPLE@@';   // 示例照片（打包时内嵌）
+const ill = (svg) => `<svg viewBox="0 0 400 120" width="100%" height="120" xmlns="http://www.w3.org/2000/svg"><image href="${SAMPLE}" width="400" height="120" preserveAspectRatio="xMidYMid slice"/>${svg}</svg>`;
+const torn = 'fill="#e6d3ab" stroke="#fffaf0" stroke-width="4" stroke-linejoin="round"';
+const GUIDE = [
+  ['选一张照片', '点「选一张照片」，从相册里挑一张。红墙、经幡、雪山、天空都很合适：照片里颜色越干净，撕开后的字越显眼。',
+    ill('<rect x="120" y="18" width="160" height="84" rx="6" fill="#f3efe6"/><path d="M200 42v36M182 60h36" stroke="#2b2723" stroke-width="5" stroke-linecap="round"/>')],
+  ['选一种撕法', '<b>泪痕</b>：撕出一道细长的口子，字竖着排在里面。<br><b>破洞</b>：撕出不规则的洞，露出底下整页的字。<br><b>撕角</b>：沿一条线撕掉一整块。',
+    ill(`<path d="M70 14 q14 40 -4 92 l16 2 q16-50 2-94z" ${torn}/><path d="M170 30 q30-14 52 6 q14 26-12 44 q-34 14-46-14 q-6-20 6-36z" ${torn}/><path d="M270 120 L400 50 L400 120z" ${torn}/>`)],
+  ['在照片上动手', '泪痕：用手指<b>画一笔</b>。破洞：<b>点一下</b>，或者按住抹一片。撕角：<b>拖一条线</b>。<br>松手的那一刻就撕开了。不满意就点「撤销」。',
+    ill('<path d="M110 20 C140 50 120 80 160 100" stroke="#fffaf0" stroke-width="6" fill="none" stroke-dasharray="10 8" stroke-linecap="round"/><circle cx="160" cy="100" r="11" fill="#fffaf0" opacity=".8"/>')],
+  ['换经文、纸和墨', '底下默认印着尼泊尔寺庙里常见的梵文经文（六字真言、心经……），也可以选「自己写」。<br>纸有洛克塔手工纸、雪白、天蓝、朱红，墨有墨黑、朱砂、藏青、米白。天蓝纸配朱砂墨，很像经幡。',
+    ill('<rect x="40" y="20" width="320" height="80" rx="6" fill="#d3e4ef"/><text x="200" y="72" text-anchor="middle" font-size="30" fill="#a3271d" font-family="Noto Serif Devanagari,serif">ॐ मणि पद्मे हूँ</text>')],
+  ['导出，存进相册', '点「导出」。iPhone 上会弹出分享面板，选「存储图像」。<br>如果没有弹出（比如直接打开的本地文件），图片会在新页面打开，长按就能保存。',
+    ill('<rect x="150" y="16" width="100" height="88" rx="8" fill="#f3efe6"/><path d="M200 34v38M184 58l16 16 16-16" stroke="#2b2723" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>')],
+];
+let gi = 0;
+function showGuide(i) {
+  gi = i; const [t, p, im] = GUIDE[i];
+  $('gNo').textContent = `${String(i + 1).padStart(2, '0')} / ${String(GUIDE.length).padStart(2, '0')}`;
+  $('gT').textContent = t; $('gP').innerHTML = p; $('gI').innerHTML = im;
+  $('gD').innerHTML = GUIDE.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('');
+  $('gNext').textContent = i === GUIDE.length - 1 ? '开始撕' : '下一步';
+  $('guide').classList.add('show');
+}
+function closeGuide() { $('guide').classList.remove('show'); try { localStorage.setItem('tp_guide_v1', '1'); } catch (_) {} }
+$('gNext').onclick = () => { if (gi < GUIDE.length - 1) return showGuide(gi + 1); closeGuide(); if (!photo) loadImage(SAMPLE); };
+$('gSkip').onclick = closeGuide;
+$('guide').onclick = e => { if (e.target.id === 'guide') closeGuide(); };
+$('help').onclick = () => showGuide(0);
+$('demo').onclick = () => loadImage(SAMPLE);
+$('help2').onclick = e => { e.preventDefault(); showGuide(0); };
+let seen = false; try { seen = !!localStorage.getItem('tp_guide_v1'); } catch (_) {}
+if (!seen) showGuide(0);
+</script>
+</body>
+</html>
