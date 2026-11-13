@@ -10,7 +10,7 @@
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.4 -apple-system,"PingFang SC",sans-serif; }
   header { display:flex; align-items:baseline; justify-content:space-between; padding:14px 16px 8px; }
-  header b { font:600 17px "Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif; letter-spacing:.08em; }
+  header b { font:600 17px "LXGW WenKai",serif; letter-spacing:.08em; }
   header span { font:11px "Special Elite",monospace; color:var(--mute); letter-spacing:.12em; }
   #stage { position:relative; display:flex; justify-content:center; padding:0 12px; }
   #cv { max-width:100%; max-height:62vh; touch-action:none; display:block; border-radius:6px; }
@@ -29,7 +29,7 @@
   label.file input { position:absolute; inset:0; opacity:0; }
   select { flex:1; border:1px solid var(--line); border-radius:8px; background:#fffdf8; padding:8px; font-size:14px; color:var(--ink); }
   textarea { width:100%; min-height:72px; border:1px solid var(--line); border-radius:8px; background:#fffdf8; padding:10px;
-             font:14px/1.6 "Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif; color:var(--ink); resize:vertical; }
+             font:14px/1.6 "LXGW WenKai",serif; color:var(--ink); resize:vertical; }
   .sl { display:grid; grid-template-columns:64px 1fr; align-items:center; gap:8px; font-size:13px; color:var(--mute); }
   input[type=range] { width:100%; accent-color:var(--ink); }
   .sw { width:28px; height:28px; border-radius:50%; border:2px solid transparent; box-shadow:0 0 0 1px var(--line) inset; }
@@ -40,7 +40,7 @@
   #help { width:24px; height:24px; border-radius:50%; border:1px solid var(--ink); background:transparent; font:600 13px Georgia,serif; color:var(--ink); padding:0; }
   #empty { width:100%; max-width:560px; aspect-ratio:4/3; border:1.5px dashed #c9bfac; border-radius:10px; display:flex; flex-direction:column;
            align-items:center; justify-content:center; gap:14px; background:repeating-linear-gradient(45deg,#efe9dc 0 10px,#f3efe6 10px 20px); }
-  #empty .big { font:600 16px "Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif; padding:12px 22px; }
+  #empty .big { font:600 16px "LXGW WenKai",serif; padding:12px 22px; }
   #empty .cap a { color:var(--ink); }
   #guide { position:fixed; inset:0; background:rgba(30,26,22,.55); display:none; align-items:flex-end; justify-content:center; z-index:9; }
   #guide.show { display:flex; }
@@ -48,7 +48,7 @@
           background-image:repeating-linear-gradient(0deg,transparent 0 27px,rgba(140,120,80,.12) 27px 28px); }
   @media (min-width:600px) { #guide { align-items:center; } .card { border-radius:18px; } }
   .card .no { font:12px "Special Elite",monospace; letter-spacing:.15em; color:var(--mute); }
-  .card h3 { margin:6px 0 10px; font:600 22px "Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif; }
+  .card h3 { margin:6px 0 10px; font:600 22px "LXGW WenKai",serif; }
   .card p { margin:0 0 8px; font-size:15px; line-height:1.75; }
   .card .ill { height:120px; margin:6px 0 14px; border-radius:10px; overflow:hidden; }
   .card .nav { display:flex; align-items:center; gap:10px; margin-top:14px; }
@@ -100,7 +100,7 @@
     <button class="sw ink" title="米白" data-c="#f4ead6" style="background:#f4ead6"></button>
   </div>
   <div class="row"><span class="cap">中英文字体</span>
-    <div class="seg" id="font"><button data-v="song" class="on">宋体</button><button data-v="type">打字机</button></div>
+    <div class="seg" id="font"><button data-v="song" class="on">文楷</button><button data-v="type">打字机</button></div>
     <span class="cap">（经文固定用天城体）</span>
   </div>
   <div class="row">
@@ -151,8 +151,8 @@ const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; 
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const DEVA = /[\u0900-\u097F]/;
 const isDeva = () => DEVA.test($('text').value);
-const SONG = '"Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif';
-const fontFam = () => isDeva() ? '"Noto Serif Devanagari","Kohinoor Devanagari","Devanagari Sangam MN",serif' : S.font === 'type' ? '"Special Elite","Courier New","Songti SC","STSong",serif' : SONG;
+const SONG = '"LXGW WenKai",serif';
+const fontFam = () => isDeva() ? '"Noto Serif Devanagari","Kohinoor Devanagari","Devanagari Sangam MN",serif' : S.font === 'type' ? '"Special Elite","Courier New","LXGW WenKai",serif' : SONG;
 
 // 分形值噪声，返回 0..1 的 Float32Array
 function fbm(w, h, octs, seed) {

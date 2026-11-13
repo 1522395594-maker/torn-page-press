@@ -21,7 +21,7 @@
 ## 开发
 
 - 源码：`src/app.html`
-- 字体：`fonts/`（Noto Serif Devanagari、Special Elite，SIL Open Font License）
+- 字体：`fonts/`（Noto Serif Devanagari、Special Elite、霞鹜文楷 LXGW WenKai，均为 SIL Open Font License）
 - 打包：`python3 build.py`，生成根目录的 `index.html`
 
-中文字体使用系统自带的宋体（苹果设备上是 Songti SC）。
+中文字体是霞鹜文楷，只收了常用的 3782 个汉字（GB2312 一级字库加上界面用字），生僻字会显示成系统字体。
